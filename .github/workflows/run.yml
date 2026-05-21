@@ -1,34 +1,48 @@
-name: Run SIP Scraper
+name: SIP Stock Scraper
 
 on:
   workflow_dispatch:
+    inputs:
+      target_date:
+        description: 'Fecha a descargar (YYYY-MM-DD)'
+        required: true
+        type: string
+      webhook_url:
+        description: 'URL del webhook n8n donde enviar el CSV'
+        required: true
+        type: string
 
 jobs:
-  run:
+  scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
 
-      - name: Install dependencies
-        run: |
-          npm init -y
-          npm install playwright
+      - name: Install dependencias
+        run: npm install playwright
 
-      - name: Install browsers
-        run: npx playwright install --with-deps
+      - name: Instalar Chromium
+        run: npx playwright install chromium --with-deps
 
-      - name: Run scraper
+      - name: Ejecutar scraper
         run: node scraper.js
+        env:
+          TARGET_DATE: ${{ inputs.target_date }}
+          N8N_WEBHOOK_URL: ${{ inputs.webhook_url }}
 
-      - name: Upload artifact
+      # Si falló y hay screenshot de debug, subirlo como artefacto
+      - name: Upload debug screenshot (si existe)
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: archivo-descargado
-          path: /home/runner/work/**/*
+          name: debug-screenshot
+          path: debug_screenshot.png
+          if-no-files-found: ignore
