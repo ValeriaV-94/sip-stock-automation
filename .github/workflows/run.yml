@@ -14,13 +14,21 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Install dependencies
         run: |
           npm init -y
           npm install playwright
-          npx playwright install --with-deps
+
+      - name: Install browsers
+        run: npx playwright install --with-deps
 
       - name: Run scraper
         run: node scraper.js
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: archivo-descargado
+          path: /home/runner/work/**/*
