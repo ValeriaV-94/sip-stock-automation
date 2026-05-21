@@ -1,42 +1,32 @@
-const { chromium } = require('playwright');
+name: Run SIP Scraper
 
-(async () => {
-  try {
-    const browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({
-      acceptDownloads: true
-    });
-    const page = await context.newPage();
+on:
+  workflow_dispatch:
 
-    await page.goto('https://sip.gdu.com.uy/SIP/', {
-      waitUntil: 'networkidle'
-    });
+jobs:
+  run:
+    runs-on: ubuntu-latest
 
-    // Esperar inputs de fecha (ajustar si cambia el selector)
-    await page.waitForTimeout(5000);
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-    // ⚠️ IMPORTANTE: estos selectores pueden necesitar ajuste
-    const inputs = await page.$$('input[type="date"]');
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
 
-    if (inputs.length >= 2) {
-      await inputs[0].fill('2026-05-20');
-      await inputs[1].fill('2026-05-20');
-    }
+      - name: Install dependencies
+        run: |
+          npm init -y
+          npm install playwright
+          npx playwright install --with-deps
 
-    // Intentar click en botón descargar
-    const downloadPromise = page.waitForEvent('download', { timeout: 15000 });
+      - name: Run scraper
+        run: node scraper.js
 
-    await page.click('a:has-text("Descargar")');
-
-    const download = await downloadPromise;
-
-    await download.saveAs('stock.csv');
-
-    console.log('CSV descargado correctamente');
-
-    await browser.close();
-  } catch (error) {
-    console.error('ERROR:', error);
-    process.exit(1);
-  }
-})();
+      - name: Upload CSV
+        uses: actions/upload-artifact@v4
+        with:
+          name: stock
+          path: stock.csv
