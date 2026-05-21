@@ -4,58 +4,58 @@ const { chromium } = require('playwright');
   try {
     console.log("Iniciando navegador...");
 
-    const browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({ acceptDownloads: true });
+    const browser = await chromium.launch({
+      headless: true
+    });
+
+    const context = await browser.newContext({
+      acceptDownloads: true
+    });
+
     const page = await context.newPage();
 
+    console.log("Entrando al portal...");
     await page.goto('https://sip.gdu.com.uy/SIP/', {
       waitUntil: 'networkidle'
     });
 
-    console.log("Esperando que cargue Shiny...");
-    await page.waitForTimeout(10000);
+    // 🔥 CLAVE: esperar que Shiny cargue
+    console.log("Esperando render de Shiny...");
+    await page.waitForSelector('#DatosSinStock', { timeout: 30000 });
 
-    // 🔥 DEBUG: listar todos los inputs
-    const allInputs = await page.$$eval('input', els =>
-      els.map(e => ({
-        type: e.type,
-        name: e.name,
-        id: e.id,
-        value: e.value
-      }))
-    );
+    // Esperar inputs
+    await page.waitForTimeout(5000);
 
-    console.log("INPUTS DETECTADOS:");
-    console.log(JSON.stringify(allInputs, null, 2));
-
-    // 🔥 Intentar ubicar inputs por posición (más robusto)
+    console.log("Buscando inputs...");
     const inputs = await page.$$('input');
 
+    console.log("Cantidad de inputs encontrados:", inputs.length);
+
     if (inputs.length < 2) {
-      throw new Error("No hay suficientes inputs en la página");
+      throw new Error("No se encontraron suficientes inputs");
     }
 
-    console.log("Cargando fechas...");
-
+    // 🔥 SETEAR FECHAS (IMPORTANTE)
+    console.log("Seteando fechas...");
     await inputs[0].fill('2026-05-20');
     await inputs[1].fill('2026-05-20');
 
     await page.waitForTimeout(2000);
 
+    // 🔥 CLICK DESCARGAR
     console.log("Buscando botón descargar...");
-
     const downloadPromise = page.waitForEvent('download', { timeout: 20000 });
 
-    // 🔥 selector más flexible
     await page.click('text=Descargar');
 
     const download = await downloadPromise;
 
-    await download.saveAs('stock.csv');
-
-    console.log("DESCARGA OK");
+    const path = await download.path();
+    console.log("Archivo descargado en:", path);
 
     await browser.close();
+
+    console.log("Proceso terminado OK");
 
   } catch (err) {
     console.error("ERROR:", err);
