@@ -12,19 +12,41 @@ const { chromium } = require('playwright');
       waitUntil: 'networkidle'
     });
 
-    await page.waitForTimeout(8000);
+    console.log("Esperando que cargue Shiny...");
+    await page.waitForTimeout(10000);
 
-    const inputs = await page.$$('input[type="date"]');
+    // 🔥 DEBUG: listar todos los inputs
+    const allInputs = await page.$$eval('input', els =>
+      els.map(e => ({
+        type: e.type,
+        name: e.name,
+        id: e.id,
+        value: e.value
+      }))
+    );
+
+    console.log("INPUTS DETECTADOS:");
+    console.log(JSON.stringify(allInputs, null, 2));
+
+    // 🔥 Intentar ubicar inputs por posición (más robusto)
+    const inputs = await page.$$('input');
 
     if (inputs.length < 2) {
-      throw new Error("No se encontraron inputs de fecha");
+      throw new Error("No hay suficientes inputs en la página");
     }
+
+    console.log("Cargando fechas...");
 
     await inputs[0].fill('2026-05-20');
     await inputs[1].fill('2026-05-20');
 
+    await page.waitForTimeout(2000);
+
+    console.log("Buscando botón descargar...");
+
     const downloadPromise = page.waitForEvent('download', { timeout: 20000 });
 
+    // 🔥 selector más flexible
     await page.click('text=Descargar');
 
     const download = await downloadPromise;
