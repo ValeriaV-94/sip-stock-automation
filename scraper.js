@@ -1,27 +1,42 @@
 const { chromium } = require('playwright');
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
+  try {
+    console.log("Iniciando navegador...");
 
-  await page.goto('https://sip.gdu.com.uy/SIP/', {
-    waitUntil: 'networkidle'
-  });
+    const browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ acceptDownloads: true });
+    const page = await context.newPage();
 
-  // Esperar que cargue el selector de fechas
-  await page.waitForSelector('input[type="date"]');
+    await page.goto('https://sip.gdu.com.uy/SIP/', {
+      waitUntil: 'networkidle'
+    });
 
-  // Setear fechas (puedes parametrizar luego)
-  await page.fill('input[name="daterange1"]', '2026-05-20');
-  await page.fill('input[name="daterange2"]', '2026-05-20');
+    await page.waitForTimeout(8000);
 
-  // Click en descargar
-  await page.click('a#Descargasinstock');
+    const inputs = await page.$$('input[type="date"]');
 
-  // Esperar descarga
-  const download = await page.waitForEvent('download');
+    if (inputs.length < 2) {
+      throw new Error("No se encontraron inputs de fecha");
+    }
 
-  await download.saveAs('stock.csv');
+    await inputs[0].fill('2026-05-20');
+    await inputs[1].fill('2026-05-20');
 
-  await browser.close();
+    const downloadPromise = page.waitForEvent('download', { timeout: 20000 });
+
+    await page.click('text=Descargar');
+
+    const download = await downloadPromise;
+
+    await download.saveAs('stock.csv');
+
+    console.log("DESCARGA OK");
+
+    await browser.close();
+
+  } catch (err) {
+    console.error("ERROR:", err);
+    process.exit(1);
+  }
 })();
