@@ -24,9 +24,3 @@ jobs:
 
       - name: Run scraper
         run: node scraper.js
-
-      - name: Upload CSV
-        uses: actions/upload-artifact@v4
-        with:
-          name: stock
-          path: stock.csv
