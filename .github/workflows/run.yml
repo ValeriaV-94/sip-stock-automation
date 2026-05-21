@@ -46,3 +46,9 @@ jobs:
           name: debug-screenshot
           path: debug_screenshot.png
           if-no-files-found: ignore
+          
+      - name: Send result to n8n   ✅ MISMO NIVEL
+        run: | 
+          curl -X POST "https://waltdo.app.n8n.cloud/webhook/sip-stock" \
+          -H "Content-Type: application/json" \
+          -d '{"status": "finished"}'
