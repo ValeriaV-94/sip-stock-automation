@@ -1,0 +1,33 @@
+name: Run SIP Scraper
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * *' # todos los días 6 AM
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: |
+          npm init -y
+          npm install playwright
+
+      - name: Run scraper
+        run: node scraper.js
+
+      - name: Upload CSV
+        uses: actions/upload-artifact@v3
+        with:
+          name: stock
+          path: stock.csv
