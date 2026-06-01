@@ -1,0 +1,79 @@
+name: SIP Stock Downloader
+
+on:
+  # n8n Cloud dispara esto via repository_dispatch
+  repository_dispatch:
+    types: [run-sip-stock]
+
+  # También puede correr por schedule como respaldo (lunes a sábado 10:00 UTC = 07:00 ART)
+  schedule:
+    - cron: "0 10 * * 1-6"
+
+  # Ejecución manual desde la UI de GitHub (útil para testing)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Solo loguear, no subir a Drive"
+        required: false
+        default: "false"
+
+jobs:
+  download-stock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Ejecutar descarga de stock
+        id: stock
+        env:
+          SIP_PROV_ID: ${{ secrets.SIP_PROV_ID }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          OUTPUT_DIR: /tmp
+        run: |
+          echo "Iniciando descarga de stock..."
+          node src/index.js 2>&1 | tee /tmp/output.log
+          EXIT_CODE=${PIPESTATUS[0]}
+
+          # Extraer el JSON de output que el script emite en la última línea con prefijo N8N_OUTPUT:
+          N8N_LINE=$(grep "^N8N_OUTPUT:" /tmp/output.log | tail -1)
+          N8N_JSON=${N8N_LINE#N8N_OUTPUT:}
+
+          echo "n8n_result=$N8N_JSON" >> $GITHUB_OUTPUT
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+          exit $EXIT_CODE
+
+      - name: Notificar resultado a n8n Cloud
+        if: always()
+        run: |
+          RESULT='${{ steps.stock.outputs.n8n_result }}'
+          N8N_WEBHOOK="${{ secrets.N8N_WEBHOOK_URL }}"
+
+          if [ -z "$N8N_WEBHOOK" ]; then
+            echo "N8N_WEBHOOK_URL no configurado, saltando notificación."
+            exit 0
+          fi
+
+          echo "Notificando a n8n: $RESULT"
+          curl -s -X POST "$N8N_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "$RESULT" || echo "Warning: no se pudo notificar a n8n (non-fatal)"
+
+      - name: Log completo en caso de error
+        if: failure()
+        run: |
+          echo "=== LOG COMPLETO ==="
+          cat /tmp/output.log || echo "No hay log disponible"
