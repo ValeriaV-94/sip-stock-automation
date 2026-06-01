@@ -1,0 +1,127 @@
+{
+  "name": "Descarga Portal Proveedores SIP",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "custom",
+              "cronExpression": "0 10 * * 1-6"
+            }
+          ]
+        }
+      },
+      "name": "Cron Diario 07:00 ART",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [-1200, 200],
+      "id": "cron-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calcular fechas para el filtro\nconst today = new Date();\nconst yesterday = new Date();\nyesterday.setDate(today.getDate() - 1);\n\nconst fmt = (d) => d.toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    fechaDesde: fmt(yesterday),\n    fechaHasta: fmt(today),\n    label: fmt(yesterday)\n  }\n}];"
+      },
+      "name": "Calcular Fechas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-960, 200],
+      "id": "calcular-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/repos/{{ $env.GITHUB_OWNER }}/{{ $env.GITHUB_REPO }}/dispatches",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.GITHUB_TOKEN }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={{ JSON.stringify({ event_type: 'run-sip-stock', client_payload: { fechaDesde: $node['Calcular Fechas'].json.fechaDesde, fechaHasta: $node['Calcular Fechas'].json.fechaHasta, label: $node['Calcular Fechas'].json.label } }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "name": "Disparar GitHub Actions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [-720, 200],
+      "id": "github-dispatch-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verificar que GitHub aceptó el dispatch\nconst statusCode = items[0].json.statusCode;\n\nif (statusCode !== 204) {\n  throw new Error(`GitHub dispatch falló. Status: ${statusCode}. Body: ${JSON.stringify(items[0].json.body)}`);\n}\n\nreturn [{\n  json: {\n    dispatched: true,\n    statusCode,\n    fechaDesde: $node['Calcular Fechas'].json.fechaDesde,\n    fechaHasta: $node['Calcular Fechas'].json.fechaHasta,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "Verificar Dispatch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-480, 200],
+      "id": "verify-dispatch-001"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sip-stock-callback",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Webhook Resultado",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-480, 400],
+      "id": "webhook-result-001",
+      "webhookId": "sip-stock-callback"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Procesar resultado que llegó desde GitHub Actions\nconst body = items[0].json.body || items[0].json;\n\nif (!body.success) {\n  throw new Error(`GitHub Actions reportó error: ${body.error}`);\n}\n\nreturn [{\n  json: {\n    success: true,\n    records: body.records,\n    filename: body.filename,\n    driveUrl: body.driveUrl,\n    driveId: body.driveId,\n    fechaDesde: body.fechaDesde,\n    fechaHasta: body.fechaHasta,\n    elapsedSeconds: body.elapsedSeconds,\n    completedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "Procesar Resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-240, 400],
+      "id": "process-result-001"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Cron Diario 07:00 ART": {
+      "main": [[{ "node": "Calcular Fechas", "type": "main", "index": 0 }]]
+    },
+    "Calcular Fechas": {
+      "main": [[{ "node": "Disparar GitHub Actions", "type": "main", "index": 0 }]]
+    },
+    "Disparar GitHub Actions": {
+      "main": [[{ "node": "Verificar Dispatch", "type": "main", "index": 0 }]]
+    },
+    "Webhook Resultado": {
+      "main": [[{ "node": "Procesar Resultado", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
