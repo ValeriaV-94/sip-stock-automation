@@ -1,0 +1,19 @@
+{
+  "name": "sip-stock-downloader",
+  "version": "2.0.0",
+  "description": "Descarga automatica de stock desde portal SIP GDU (R Shiny) via WebSocket, genera XLSX y sube a Google Drive",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dry-run": "node src/index.js --dry-run"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "ws": "8.18.0",
+    "xlsx": "0.18.5",
+    "googleapis": "144.0.0",
+    "node-fetch": "2.7.0"
+  }
+}

@@ -1,0 +1,68 @@
+name: SIP Stock Download
+
+on:
+  repository_dispatch:
+    types: [run-stock-download]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Ejecutar en modo dry-run (no sube a Drive ni notifica a n8n)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      date_from:
+        description: "Fecha desde (YYYY-MM-DD). Vacio = calculo automatico"
+        required: false
+        default: ""
+      date_to:
+        description: "Fecha hasta (YYYY-MM-DD). Vacio = calculo automatico"
+        required: false
+        default: ""
+
+jobs:
+  download-stock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Ejecutar descarga de Stock
+        env:
+          GDU_BASE_URL: ${{ secrets.GDU_BASE_URL }}
+          GDU_PROV_ID: ${{ secrets.GDU_PROV_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+          N8N_CALLBACK_URL: ${{ secrets.N8N_CALLBACK_URL }}
+          N8N_CALLBACK_TOKEN: ${{ secrets.N8N_CALLBACK_TOKEN }}
+          STOCK_COLUMNS: ${{ secrets.STOCK_COLUMNS }}
+          TARGET_DATE_FROM: ${{ github.event.client_payload.date_from || github.event.inputs.date_from }}
+          TARGET_DATE_TO: ${{ github.event.client_payload.date_to || github.event.inputs.date_to }}
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            npm run dry-run
+          else
+            npm start
+          fi
+
+      - name: Subir Excel generado como artifact (respaldo)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stock-excel
+          path: output/*.xlsx
+          retention-days: 14
+          if-no-files-found: ignore
